@@ -13,3 +13,4 @@
 mkmf.log
 target/
 .direnv/
+.byebug_history

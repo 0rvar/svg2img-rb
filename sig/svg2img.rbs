@@ -1,4 +1,4 @@
-module Svg2img
+module Svg2Img
   VERSION: String
   # See the writing guide of rbs: https://github.com/ruby/rbs#guides
 end

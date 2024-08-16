@@ -4,7 +4,7 @@ require_relative "lib/svg2img/version"
 
 Gem::Specification.new do |spec|
   spec.name = "svg2img"
-  spec.version = Svg2img::VERSION
+  spec.version = Svg2Img::VERSION
   spec.authors = ["Orvar Segerström"]
   spec.email = ["orvarsegerstrom@gmail.com"]
 

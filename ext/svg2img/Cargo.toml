@@ -10,4 +10,8 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
+anyhow = "1.0.86"
+image = "0.25.2"
 magnus = { version = "0.6.2" }
+resvg = "0.43.0"
+uuid = { version = "1.10.0", features = ["v4"] }
