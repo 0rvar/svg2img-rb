@@ -153,22 +153,6 @@ fn image_from_svg(bytes: &[u8], size: ProcessSize) -> Result<DynamicImage, anyho
     let tx = (image_width as f32 - rendered_width) / 2.0;
     let ty = (image_height as f32 - rendered_height) / 2.0;
 
-    // panic!(
-    //     r#"
-    //     svg_width: {svg_width}
-    //     svg_height: {svg_height}
-    //     svg_ratio: {svg_ratio}
-    //     image_width: {image_width}
-    //     image_height: {image_height}
-    //     image_ratio: {image_ratio}
-    //     rendered_width: {rendered_width}
-    //     rendered_height: {rendered_height}
-    //     scale: {scale}
-    //     tx: {tx}
-    //     ty: {ty}
-    // "#
-    // );
-
     // Scale svg and place it centered
     let transform: resvg::usvg::Transform = resvg::tiny_skia::Transform {
         sx: scale,
