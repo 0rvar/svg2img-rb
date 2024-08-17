@@ -7,19 +7,24 @@ RSpec.describe 'Svg2Img' do
   it 'rejects invalid options' do
     expect{ Svg2Img.process_svg('', format: :monkey) }.to raise_error(ArgumentError)
     expect{ Svg2Img.process_svg('', format: 'monkey') }.to raise_error(ArgumentError)
-    expect{ Svg2Img.process_svg('', max_width: :sym) }.to raise_error(ArgumentError)
-    expect{ Svg2Img.process_svg('', max_height: "str") }.to raise_error(ArgumentError)
+    expect{ Svg2Img.process_svg('', size: "str") }.to raise_error(ArgumentError)
   end
 
   it 'converts svg to png' do
-    png_path = Svg2Img.process_svg(circle_svg, format: :png)
+    called_size = false
+    png_path = Svg2Img.process_svg(circle_svg, format: :png, size: proc {|width, height| called_size = true; [width, height]})
+    expect(called_size).to be true
     expect(File.exist?(png_path)).to be true
     expect(File.size(png_path)).to be > 0
     expect(File.extname(png_path)).to eq('.png')
   end
 
   it 'converts svg with specified output path' do
-    png_path = Svg2Img.process_svg(circle_svg, format: :png, output_path: 'tmp/circle.png')
+    png_path = Svg2Img.process_svg(circle_svg, 
+      format: :png, 
+      output_path: 'tmp/circle.png',
+      size: proc {|width, height| [200, 500]}
+    )
     expect(png_path).to eq('tmp/circle.png')
     expect(File.exist?(png_path)).to be true
     expect(File.size(png_path)).to be > 0

@@ -55,13 +55,18 @@ png_path = Svg2Img.process_svg(circle_svg, output_format: :png)
 
 # Rails example
 data = Rails.cache.fetch([some, deps]) do
-  png_path = Svg2Img.process_svg(circle_svg, output_format: :png)
+  png_path = Svg2Img.process_svg(circle_svg, output_format: :png, size: proc {|_svg_width, _svg_height| [256, 256]})
   png_data = File.binread(png_path)
   File.delete(png_path)
   png_data
 end
 send_data(png_data, type: 'image/png', disposition: 'inline')
 ```
+
+### Options
+
+- `output_format` - output format, one of `:png`, `:jpg`, `:webp`, `:gif`
+- `size` - size of the output image as a proc that receives the width and height of the SVG and returns an array with the width and height of the output image. If the provides size has a different aspect ratio than the SVG, the image will be resized to fit in the center of the provided size. If not provided, the output image will have the same size as the SVG.
 
 ## Development
 

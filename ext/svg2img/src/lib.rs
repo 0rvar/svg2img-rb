@@ -1,6 +1,6 @@
 use anyhow::Context;
-use image::{DynamicImage, GenericImageView, ImageBuffer};
-use magnus::{function, prelude::*, Error, Ruby};
+use image::{DynamicImage, ImageBuffer};
+use magnus::{block::Proc, function, prelude::*, Error, Ruby};
 use std::panic::{self, AssertUnwindSafe};
 
 #[magnus::init]
@@ -28,8 +28,9 @@ fn process_svg_rb(svg: String, options: magnus::RHash) -> Result<String, magnus:
         };
     }
     let options = Options {
-        max_width: get_option(&options, "max_width")?,
-        max_height: get_option(&options, "max_height")?,
+        size: get_option::<Proc>(&options, "size")?
+            .map(convert_size_proc)
+            .unwrap_or_else(default_size),
         format,
         output_path: get_option(&options, "output_path")?,
     };
@@ -76,32 +77,30 @@ fn get_string_option(options: &magnus::RHash, key: &str) -> Result<Option<String
     Ok(None)
 }
 
+type ProcessSize = Box<dyn FnOnce(u32, u32) -> Result<(u32, u32), anyhow::Error>>;
+fn default_size() -> ProcessSize {
+    Box::new(|width, height| Ok((width, height)))
+}
+fn convert_size_proc(proc: Proc) -> ProcessSize {
+    Box::new(move |width, height| {
+        let result: Result<(i64, i64), magnus::Error> = proc.call((width as i64, height as i64));
+        match result {
+            Ok((width, height)) => Ok((width as u32, height as u32)),
+            Err(err) => Err(anyhow::anyhow!(
+                "svg2img: Failed to call size proc: {err:?}"
+            )),
+        }
+    })
+}
+
 struct Options {
-    max_width: Option<u32>,
-    max_height: Option<u32>,
+    size: ProcessSize,
     format: image::ImageFormat,
     output_path: Option<String>,
 }
 
 fn process_svg(svg: String, options: Options) -> Result<String, anyhow::Error> {
-    let image = image_from_svg(svg.as_bytes())?;
-    let (old_width, old_height) = image.dimensions();
-
-    let (mut width, mut height) = (old_width, old_height);
-    if let Some(max_width) = options.max_width {
-        if width > max_width {
-            height = height * max_width / width;
-            width = max_width;
-        }
-    }
-    if let Some(max_height) = options.max_height {
-        if height > max_height {
-            width = width * max_height / height;
-            height = max_height;
-        }
-    }
-
-    let mut image = image.resize_exact(width, height, image::imageops::FilterType::Lanczos3);
+    let mut image = image_from_svg(svg.as_bytes(), options.size)?;
 
     if options.format == image::ImageFormat::Jpeg {
         // Convert from rgba8 to rgb8
@@ -134,36 +133,56 @@ fn process_svg(svg: String, options: Options) -> Result<String, anyhow::Error> {
     Ok(output_path)
 }
 
-fn image_from_svg(bytes: &[u8]) -> Result<DynamicImage, anyhow::Error> {
-    let tree = resvg::usvg::Tree::from_data(bytes, &resvg::usvg::Options::default())
+fn image_from_svg(bytes: &[u8], size: ProcessSize) -> Result<DynamicImage, anyhow::Error> {
+    let svg = resvg::usvg::Tree::from_data(bytes, &resvg::usvg::Options::default())
         .context("Failed to parse SVG")?;
+    let svg_width = svg.size().width();
+    let svg_height = svg.size().height();
+    let svg_ratio = svg_width / svg_height;
 
-    const TARGET_SIZE: u32 = 512;
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(TARGET_SIZE, TARGET_SIZE)
-        .context("Failed to create Pixmap for SVG rendering")?;
-    let ratio = tree.size().width() / tree.size().height();
-    let scaled_width = if ratio > 1.0 {
-        TARGET_SIZE
+    let (image_width, image_height) = size(svg_width as u32, svg_height as u32)?;
+    let image_ratio = image_width as f32 / image_height as f32;
+
+    let scale = if svg_ratio > image_ratio {
+        image_width as f32 / svg_width
     } else {
-        (TARGET_SIZE as f32 * ratio).round() as u32
+        image_height as f32 / svg_height
     };
-    let scaled_height = if ratio > 1.0 {
-        (TARGET_SIZE as f32 / ratio).round() as u32
-    } else {
-        TARGET_SIZE
-    };
+    let rendered_width = svg_width * scale;
+    let rendered_height = svg_height * scale;
+    let tx = (image_width as f32 - rendered_width) / 2.0;
+    let ty = (image_height as f32 - rendered_height) / 2.0;
+
+    // panic!(
+    //     r#"
+    //     svg_width: {svg_width}
+    //     svg_height: {svg_height}
+    //     svg_ratio: {svg_ratio}
+    //     image_width: {image_width}
+    //     image_height: {image_height}
+    //     image_ratio: {image_ratio}
+    //     rendered_width: {rendered_width}
+    //     rendered_height: {rendered_height}
+    //     scale: {scale}
+    //     tx: {tx}
+    //     ty: {ty}
+    // "#
+    // );
 
     // Scale svg and place it centered
-    let transform = resvg::tiny_skia::Transform {
-        sx: scaled_width as f32 / tree.size().width(),
-        sy: scaled_height as f32 / tree.size().height(),
-        tx: (TARGET_SIZE - scaled_width) as f32 / 2.0,
-        ty: (TARGET_SIZE - scaled_height) as f32 / 2.0,
+    let transform: resvg::usvg::Transform = resvg::tiny_skia::Transform {
+        sx: scale,
+        sy: scale,
+        tx,
+        ty,
         ..Default::default()
     };
 
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(image_width, image_height)
+        .context("Failed to create Pixmap for SVG rendering")?;
+
     let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        resvg::render(&tree, transform, &mut pixmap.as_mut());
+        resvg::render(&svg, transform, &mut pixmap.as_mut());
     }));
     if let Err(panic) = result {
         let panic_message = panic
@@ -178,10 +197,10 @@ fn image_from_svg(bytes: &[u8]) -> Result<DynamicImage, anyhow::Error> {
         return Err(anyhow::anyhow!("SVG rendering panicked: {}", panic_message));
     }
 
-    rgba_to_image(pixmap.width(), pixmap.height(), pixmap.data())
+    pixmap_to_image(pixmap.width(), pixmap.height(), pixmap.data())
 }
 
-fn rgba_to_image(width: u32, height: u32, data: &[u8]) -> Result<DynamicImage, anyhow::Error> {
+fn pixmap_to_image(width: u32, height: u32, data: &[u8]) -> Result<DynamicImage, anyhow::Error> {
     let mut image_data = Vec::with_capacity((width * height * 4) as usize);
     for pixel in data.chunks(4) {
         image_data.push(pixel[0]); // R
