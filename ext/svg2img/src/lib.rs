@@ -1,10 +1,7 @@
 use anyhow::Context;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
-use magnus::{function, prelude::*, Error, Ruby, Symbol};
-use std::{
-    fmt::Display,
-    panic::{self, AssertUnwindSafe},
-};
+use magnus::{function, prelude::*, Error, Ruby};
+use std::panic::{self, AssertUnwindSafe};
 
 #[magnus::init]
 fn init(ruby: &Ruby) -> Result<(), Error> {
@@ -14,15 +11,10 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
 }
 
 fn process_svg_rb(svg: String, options: magnus::RHash) -> Result<String, magnus::Error> {
-    let mut output_format = image::ImageFormat::Png;
+    let mut format = image::ImageFormat::Png;
 
-    let output_format_option = get_option::<Symbol>(&options, "output_format").or_else(|_| {
-        get_option::<String>(&options, "output_format")
-            .map(|format| format.map(|format| Symbol::new(format.as_str())))
-    });
-
-    if let Some(format) = output_format_option? {
-        output_format = match unsafe { format.to_s()?.into_owned() }.as_ref() {
+    if let Some(format_option) = get_string_option(&options, "format")? {
+        format = match format_option.as_str() {
             "png" => image::ImageFormat::Png,
             "jpeg" | "jpg" => image::ImageFormat::Jpeg,
             "gif" => image::ImageFormat::Gif,
@@ -38,7 +30,7 @@ fn process_svg_rb(svg: String, options: magnus::RHash) -> Result<String, magnus:
     let options = Options {
         max_width: get_option(&options, "max_width")?,
         max_height: get_option(&options, "max_height")?,
-        output_format,
+        format,
         output_path: get_option(&options, "output_path")?,
     };
     process_svg(svg, options)
@@ -49,38 +41,45 @@ fn get_option<T>(options: &magnus::RHash, key: &str) -> Result<Option<T>, magnus
 where
     T: magnus::TryConvert,
 {
-    fn get_option_inner<K, T>(
-        options: &magnus::RHash,
-        key: K,
-        key_name: &str,
-    ) -> Result<Option<T>, magnus::Error>
-    where
-        K: magnus::IntoValue + Display + Clone,
-        T: magnus::TryConvert,
-    {
-        let option_exists = options.get(key.clone()).is_some();
-        if !option_exists {
-            return Ok(None);
-        }
-        match options.fetch::<_, T>(key) {
-            Ok(value) => Ok(Some(value)),
-            Err(err) => Err(magnus::Error::new(
-                magnus::exception::arg_error(),
-                format!("svg2img: Invalid option {key_name}: {err:?}"),
-            )),
-        }
+    let value = options
+        .get(magnus::Symbol::new(key))
+        .or_else(|| options.get(key));
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    match T::try_convert(value) {
+        Ok(value) => Ok(Some(value)),
+        Err(err) => Err(magnus::Error::new(
+            magnus::exception::arg_error(),
+            format!("svg2img: Invalid option {key}: {err:?}"),
+        )),
     }
-    let symbol_result = get_option_inner(options, magnus::Symbol::new(key), key)?;
-    if symbol_result.is_some() {
-        return Ok(symbol_result);
+}
+fn get_string_option(options: &magnus::RHash, key: &str) -> Result<Option<String>, magnus::Error> {
+    // Try get_option with String, then try again with Symbol
+    let string_option = get_option::<String>(options, key);
+    if let Ok(Some(string_option)) = string_option {
+        return Ok(Some(string_option));
     }
-    get_option_inner(options, key, key)
+
+    let symbol_option = get_option::<magnus::Symbol>(options, key)?;
+    if let Some(symbol) = symbol_option {
+        let symbol_string = unsafe {
+            symbol.to_s().map_err(|err| magnus::Error::new(
+            magnus::exception::arg_error(),
+            format!("svg2img: Invalid option {key} (could not convert from Symbol to string): {err:?}"),
+        ))?.into_owned()
+        };
+        return Ok(Some(symbol_string));
+    }
+
+    Ok(None)
 }
 
 struct Options {
     max_width: Option<u32>,
     max_height: Option<u32>,
-    output_format: image::ImageFormat,
+    format: image::ImageFormat,
     output_path: Option<String>,
 }
 
@@ -104,7 +103,7 @@ fn process_svg(svg: String, options: Options) -> Result<String, anyhow::Error> {
 
     let mut image = image.resize_exact(width, height, image::imageops::FilterType::Lanczos3);
 
-    if options.output_format == image::ImageFormat::Jpeg {
+    if options.format == image::ImageFormat::Jpeg {
         // Convert from rgba8 to rgb8
         image = DynamicImage::ImageRgb8(image.into_rgb8())
     }
@@ -112,7 +111,7 @@ fn process_svg(svg: String, options: Options) -> Result<String, anyhow::Error> {
     let mut buf = Vec::new();
     let mut cursor = std::io::Cursor::new(&mut buf);
     image
-        .write_to(&mut cursor, options.output_format)
+        .write_to(&mut cursor, options.format)
         .context("Failed to write image to buffer")?;
 
     let output_path = options.output_path.unwrap_or_else(|| {
@@ -120,7 +119,7 @@ fn process_svg(svg: String, options: Options) -> Result<String, anyhow::Error> {
             "svg2img-{}.{}",
             uuid::Uuid::new_v4(),
             options
-                .output_format
+                .format
                 .extensions_str()
                 .first()
                 .unwrap_or(&"whatever")
