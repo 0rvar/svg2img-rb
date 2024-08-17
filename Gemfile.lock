@@ -1,7 +1,8 @@
 PATH
   remote: .
   specs:
-    svg2img (0.1.0)
+    svg2img (0.1.1)
+      rb_sys (~> 0.9)
 
 GEM
   remote: https://rubygems.org/
