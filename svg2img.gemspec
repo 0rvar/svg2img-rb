@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
 
   spec.summary = "Convert svg to png, jpg, or webp"
   # spec.description = "TODO: Write a longer description or delete this line."
-  spec.homepage = "https://github.com/0rvar/svg2img"
+  spec.homepage = "https://github.com/0rvar/svg2img-rb"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
   spec.required_rubygems_version = ">= 3.3.11"
@@ -18,7 +18,7 @@ Gem::Specification.new do |spec|
   # spec.metadata["allowed_push_host"] = "TODO: Set to your gem server 'https://example.com'"
 
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://github.com/0rvar/svg2img"
+  spec.metadata["source_code_uri"] = "https://github.com/0rvar/svg2img-rb"
   spec.metadata["changelog_uri"] = spec.homepage + "/blob/master/CHANGELOG.md"
 
   # Specify which files should be added to the gem when it is released.
@@ -33,7 +33,7 @@ Gem::Specification.new do |spec|
   spec.bindir = "exe"
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
-  spec.extensions = ["ext/svg2img/Cargo.toml"]
+  spec.extensions = ["ext/svg2img-rb/Cargo.toml"]
 
   # Uncomment to register a new dependency of your gem
   # spec.add_dependency "example-gem", "~> 1.0"
