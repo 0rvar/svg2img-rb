@@ -9,6 +9,8 @@ GEMSPEC = Gem::Specification.load("svg2img.gemspec")
 
 RbSys::ExtensionTask.new("svg2img", GEMSPEC) do |ext|
   ext.lib_dir = "lib/svg2img"
+
+  ext.cross_compile = true
 end
 
 task default: :compile

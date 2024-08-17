@@ -8,11 +8,11 @@ Gem::Specification.new do |spec|
   spec.authors = ["Orvar Segerström"]
   spec.email = ["orvarsegerstrom@gmail.com"]
 
-  spec.summary = "Convert svg to png, jpg, or webp"
+  spec.summary = "Convert svg to png, jpg, or webp, with no runtime dependencies."
   # spec.description = "TODO: Write a longer description or delete this line."
   spec.homepage = "https://github.com/0rvar/svg2img-rb"
   spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.0.0"
+  spec.required_ruby_version = ">= 3.2.0"
   spec.required_rubygems_version = ">= 3.3.11"
 
   # spec.metadata["allowed_push_host"] = "TODO: Set to your gem server 'https://example.com'"
