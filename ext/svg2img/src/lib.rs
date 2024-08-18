@@ -1,5 +1,5 @@
 use anyhow::Context;
-use image::{DynamicImage, ImageBuffer};
+use image::{DynamicImage, ImageBuffer, ImageEncoder};
 use magnus::{block::Proc, function, prelude::*, Error, Ruby};
 use std::panic::{self, AssertUnwindSafe};
 
@@ -127,9 +127,27 @@ fn process_svg(svg: String, options: Options) -> Result<String, anyhow::Error> {
 
     let mut buf = Vec::new();
     let mut cursor = std::io::Cursor::new(&mut buf);
-    image
-        .write_to(&mut cursor, options.format)
-        .context("Failed to write image to buffer")?;
+    match options.format {
+        image::ImageFormat::Png => {
+            image::codecs::png::PngEncoder::new_with_quality(
+                &mut cursor,
+                image::codecs::png::CompressionType::Best,
+                image::codecs::png::FilterType::Adaptive,
+            )
+            .write_image(
+                &image.to_rgba8().into_raw(),
+                image.width(),
+                image.height(),
+                image.color().into(),
+            )
+            .context("Failed to encode PNG")?;
+        }
+        _ => {
+            image
+                .write_to(&mut cursor, options.format)
+                .context("Failed to write image to buffer")?;
+        }
+    };
 
     let output_path = options.output_path.unwrap_or_else(|| {
         let random_filename = format!(
