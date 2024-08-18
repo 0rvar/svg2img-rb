@@ -1,10 +1,10 @@
 [package]
-name = "svg2img"
-version = "0.1.0"
-edition = "2021"
 authors = ["Orvar Segerström <orvarsegerstrom@gmail.com>"]
+edition = "2021"
 license = "MIT"
+name = "svg2img"
 publish = false
+version = "0.1.0"
 
 [lib]
 crate-type = ["cdylib"]

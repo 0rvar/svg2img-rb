@@ -27,12 +27,23 @@ fn process_svg_rb(svg: String, options: magnus::RHash) -> Result<String, magnus:
             }
         };
     }
+
+    let super_sampling = get_option::<u32>(&options, "super_sampling")?.unwrap_or(2);
+    // super_sampling must me a power of 2
+    if super_sampling == 0 || super_sampling & (super_sampling - 1) != 0 {
+        return Err(magnus::Error::new(
+            magnus::exception::arg_error(),
+            "svg2img: Invalid super_sampling value, must be a power of 2",
+        ));
+    }
+
     let options = Options {
         size: get_option::<Proc>(&options, "size")?
             .map(convert_size_proc)
             .unwrap_or_else(default_size),
-        format,
         output_path: get_option(&options, "output_path")?,
+        format,
+        super_sampling,
     };
     process_svg(svg, options)
         .map_err(|err| magnus::Error::new(magnus::exception::runtime_error(), format!("{err:?}")))
@@ -97,10 +108,17 @@ struct Options {
     size: ProcessSize,
     format: image::ImageFormat,
     output_path: Option<String>,
+    super_sampling: u32,
 }
 
 fn process_svg(svg: String, options: Options) -> Result<String, anyhow::Error> {
-    let mut image = image_from_svg(svg.as_bytes(), options.size)?;
+    let image = image_from_svg(svg.as_bytes(), options.size, options.super_sampling)?;
+
+    let mut image = image.resize_exact(
+        image.width() / options.super_sampling,
+        image.height() / options.super_sampling,
+        image::imageops::FilterType::Lanczos3,
+    );
 
     if options.format == image::ImageFormat::Jpeg {
         // Convert from rgba8 to rgb8
@@ -133,7 +151,11 @@ fn process_svg(svg: String, options: Options) -> Result<String, anyhow::Error> {
     Ok(output_path)
 }
 
-fn image_from_svg(bytes: &[u8], size: ProcessSize) -> Result<DynamicImage, anyhow::Error> {
+fn image_from_svg(
+    bytes: &[u8],
+    size: ProcessSize,
+    super_sampling: u32,
+) -> Result<DynamicImage, anyhow::Error> {
     let svg = resvg::usvg::Tree::from_data(bytes, &resvg::usvg::Options::default())
         .context("Failed to parse SVG")?;
     let svg_width = svg.size().width();
@@ -141,6 +163,8 @@ fn image_from_svg(bytes: &[u8], size: ProcessSize) -> Result<DynamicImage, anyho
     let svg_ratio = svg_width / svg_height;
 
     let (image_width, image_height) = size(svg_width as u32, svg_height as u32)?;
+    let image_width = image_width * super_sampling;
+    let image_height = image_height * super_sampling;
     let image_ratio = image_width as f32 / image_height as f32;
 
     let scale = if svg_ratio > image_ratio {

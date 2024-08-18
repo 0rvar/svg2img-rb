@@ -73,6 +73,7 @@ send_data(png_data, type: 'image/png', disposition: 'inline')
 - `format` - output format, one of `:png`, `:jpg`, `:webp`, `:gif`
 - `output_path` - path to the output image. If not provided, a temporary file will be created and the path to it will be returned.
 - `size` - size of the output image as a proc that receives the width and height of the SVG and returns an array with the width and height of the output image. If the provides size has a different aspect ratio than the SVG, the image will be resized to fit in the center of the provided size. If not provided, the output image will have the same size as the SVG.
+- `super_sampling` - supersample factor. The output image will be rendered `super_sampling` times larger than the SVG and then resized to the desired size. This can be used to improve the quality of the output image. Default is 2. Must be a power of 2. 1 means no super sampling.
 
 ## Development
 

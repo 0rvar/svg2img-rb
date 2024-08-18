@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    svg2img (0.2.2)
+    svg2img (0.2.3)
       rb_sys (~> 0.9)
 
 GEM

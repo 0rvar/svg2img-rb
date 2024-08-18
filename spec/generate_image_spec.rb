@@ -8,6 +8,7 @@ RSpec.describe 'Svg2Img' do
     expect{ Svg2Img.process_svg('', format: :monkey) }.to raise_error(ArgumentError)
     expect{ Svg2Img.process_svg('', format: 'monkey') }.to raise_error(ArgumentError)
     expect{ Svg2Img.process_svg('', size: "str") }.to raise_error(ArgumentError)
+    expect{ Svg2Img.process_svg('', super_sampling: 3) }.to raise_error(ArgumentError)
   end
 
   it 'converts svg to png' do
@@ -23,7 +24,8 @@ RSpec.describe 'Svg2Img' do
     png_path = Svg2Img.process_svg(circle_svg, 
       format: :png, 
       output_path: 'tmp/circle.png',
-      size: proc {|width, height| [200, 500]}
+      size: proc {|width, height| [200, 500]},
+      super_sampling: 4,
     )
     expect(png_path).to eq('tmp/circle.png')
     expect(File.exist?(png_path)).to be true
